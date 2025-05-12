@@ -329,7 +329,7 @@
             
             DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(day => { 
                 const dayMaxPeriods = (maxPeriodsConfig && typeof maxPeriodsConfig[day] === 'number') ? maxPeriodsConfig[day] : GLOBAL_MAX_PERIODS;
-                if (!regularTimetable[day] || !Array.isArray(regularTimetable[day])) { // 配列であるかも確認
+                if (!regularTimetable[day] || !Array.isArray(regularTimetable[day])) { 
                     regularTimetable[day] = Array(dayMaxPeriods).fill(null);
                 } else {
                     if (regularTimetable[day].length > dayMaxPeriods) {
@@ -408,10 +408,13 @@
                     scheduleToDisplay = dailyTimetables[todayStr].schedule;
                     scheduleType = '変則';
                 } else if (dayOfWeekEng && regularTimetable && Array.isArray(regularTimetable[dayOfWeekEng]) && dailyTimetables[todayStr].type !== 'irregular') {
+                    // dailyTimetables[todayStr].type が 'regular' の場合、または type が未定義だがエントリが存在する場合
                     scheduleToDisplay = regularTimetable[dayOfWeekEng];
+                    scheduleType = '通常'; // 明示的に通常とする
                 }
             } else if (dayOfWeekEng && regularTimetable && Array.isArray(regularTimetable[dayOfWeekEng])) {
                 scheduleToDisplay = regularTimetable[dayOfWeekEng];
+                // scheduleType は '通常' のまま
             }
             
             let finalSchedule = Array(currentDayMaxPeriods).fill(null);
@@ -524,13 +527,14 @@
                     if (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) {
                         if (confirm('現在の予定を破棄し、この曜日の通常時間割で上書きしますか？')) {
                             const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => regularTimetable[dayOfWeekEng][idx] || null);
+                            // 上書き後は type を 'regular' に戻す
                             dailyTimetables[todayStr] = { 
-                                type: 'irregular', 
+                                type: 'regular', // 修正点: 'irregular' から 'regular' へ
                                 schedule: newSchedule, 
                                 memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" 
                             };
                             saveData();
-                            renderDailyView();
+                            renderDailyView(); // UIを再描画して「(通常)」表示に更新
                         }
                     } else {
                         alert('この曜日の通常時間割が設定されていません。');
@@ -792,7 +796,7 @@
 
         function updateMaxPeriodsForDay(dayEng, newMax) {
             maxPeriodsConfig[dayEng] = newMax;
-            if (!regularTimetable[dayEng] || !Array.isArray(regularTimetable[dayEng])) { // 配列であるかも確認
+            if (!regularTimetable[dayEng] || !Array.isArray(regularTimetable[dayEng])) { 
                 regularTimetable[dayEng] = Array(newMax).fill(null);
             } else {
                 if (regularTimetable[dayEng].length > newMax) {
@@ -895,7 +899,7 @@
             if (confirm(`科目「${subjectToDelete.name}」を削除しますか？\n関連する時間割からこの科目が「未設定」になります。`)) {
                 subjects = subjects.filter(s => s.id !== subjectId);
                 for (const day in regularTimetable) {
-                    if (Array.isArray(regularTimetable[day])) { // Check if it's an array
+                    if (Array.isArray(regularTimetable[day])) { 
                         regularTimetable[day] = regularTimetable[day].map(id => id === subjectId ? null : id);
                     }
                 }
@@ -919,7 +923,7 @@
         }
 
         function findSubjectById(id) {
-            if (!id) return null; // Guard against null/undefined id
+            if (!id) return null; 
             return subjects.find(s => s.id === id);
         }
 
@@ -1018,11 +1022,10 @@
         // --- ヘルパー関数 ---
         function formatDate(date) { 
             if (!date) return "";
-            // Check if date is already a string in "YYYY-MM-DD" format
             if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
                 return date;
             }
-            const d = new Date(date); // Handles Date objects or parsable date strings
+            const d = new Date(date); 
             if (isNaN(d.getTime())) {
                 console.warn("Invalid date passed to formatDate:", date);
                 return ""; 
