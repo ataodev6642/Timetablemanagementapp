@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>時間割管理アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f4f7f6;
+        }
+        .tab-button.active {
+            border-color: #3b82f6;
+            background-color: #3b82f6;
+            color: white;
+        }
+        .tab-button {
+            transition: all 0.3s ease-in-out;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 95%;
+            max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .subject-tag {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .subject-tag:hover {
+            background-color: #e0e0e0;
+        }
+        .favorite-tag {
+            background-color: #fef3c7;
+            border: 1px solid #fcd34d;
+        }
+        .period-slot {
+            border: 1px solid #e5e7eb;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.25rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            word-break: break-word;
+            font-size: 0.875rem;
+        }
+        .period-slot:hover {
+            background-color: #f9fafb;
+        }
+        .subject-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .subject-item:last-child {
+            border-bottom: none;
+        }
+        .delete-btn, .clear-btn {
+            background-color: #ef4444;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            transition: background-color 0.2s;
+        }
+        .delete-btn:hover, .clear-btn:hover {
+            background-color: #dc2626;
+        }
+        .fav-btn {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            border: 1px solid;
+        }
+        .fav-btn.is-favorite {
+            background-color: #fcd34d;
+            border-color: #fbbf24;
+            color: #78350f;
+        }
+        .fav-btn.not-favorite {
+            background-color: #e5e7eb;
+            border-color: #d1d5db;
+            color: #374151;
+        }
+        .timetable-table th, .timetable-table td {
+            border: 1px solid #d1d5db;
+            padding: 0.25rem 0.5rem;
+            text-align: center;
+            font-size: 0.8rem;
+        }
+        .timetable-table th {
+            background-color: #f3f4f6;
+        }
+        .timetable-table .period-label {
+            font-weight: 600;
+        }
+        .timetable-table .period-slot-editable {
+            min-height: 40px;
+            justify-content: start;
+            text-align: left;
+            cursor: pointer;
+        }
+        .timetable-table .period-slot-displayonly {
+            min-height: 40px;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .subject-color-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .action-button {
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: background-color 0.2s;
+            line-height: 1.25rem;
+        }
+        .action-button-blue { background-color: #3b82f6; color: white; }
+        .action-button-blue:hover { background-color: #2563eb; }
+        .action-button-green { background-color: #10b981; color: white; }
+        .action-button-green:hover { background-color: #059669; }
+        .action-button-orange { background-color: #f97316; color: white; }
+        .action-button-orange:hover { background-color: #ea580c; }
+        .action-button-red { background-color: #ef4444; color: white; }
+        .action-button-red:hover { background-color: #dc2626; }
+
+        /* Calendar Styles */
+        .calendar {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .calendar th, .calendar td {
+            border: 1px solid #e5e7eb; /* gray-200 */
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 0.875rem; /* text-sm */
+            height: 3.5rem; /* 固定の高さ */
+            position: relative; /* For event marker positioning */
+        }
+        .calendar th {
+            background-color: #f9fafb; /* gray-50 */
+        }
+        .calendar td {
+            cursor: pointer;
+        }
+        .calendar td:hover {
+            background-color: #eff6ff; /* blue-50 */
+        }
+        .calendar .today {
+            background-color: #bfdbfe; /* blue-200 */
+            font-weight: bold;
+        }
+        .calendar .other-month {
+            color: #9ca3af; /* gray-400 */
+        }
+        .calendar .club-status-marker { /* For ◯ or ✕ */
+            font-size: 1.25rem; /* text-xl for larger symbols */
+            font-weight: bold;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .calendar .club-present { color: #10b981; } /* green-500 */
+        .calendar .club-absent { color: #ef4444; } /* red-500 */
+    </style>
+</head>
+<body class="p-2 sm:p-4 md:p-8"> 
+    <div class="container mx-auto max-w-5xl bg-white shadow-xl rounded-lg p-3 sm:p-6">
+        <header class="mb-4 sm:mb-6 text-center">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-700">時間割管理アプリ</h1>
+        </header>
+
+        <nav class="mb-4 sm:mb-6 flex flex-wrap justify-center gap-1 sm:space-x-2"> 
+            <button id="tab-daily" class="tab-button px-3 py-1.5 sm:px-4 sm:py-2 rounded-md border-2 border-transparent font-semibold text-sm sm:text-base">今日の時間割</button>
+            <button id="tab-regular-setting" class="tab-button px-3 py-1.5 sm:px-4 sm:py-2 rounded-md border-2 border-transparent font-semibold text-sm sm:text-base">通常時間割</button>
+            <button id="tab-club-activity" class="tab-button px-3 py-1.5 sm:px-4 sm:py-2 rounded-md border-2 border-transparent font-semibold text-sm sm:text-base">部活動日程</button>
+            <button id="tab-subjects" class="tab-button px-3 py-1.5 sm:px-4 sm:py-2 rounded-md border-2 border-transparent font-semibold text-sm sm:text-base">科目管理</button>
+        </nav>
+
+        <main id="app-content">
+            </main>
+    </div>
+
+    <div id="subjectModal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-xl font-semibold mb-4">科目を選択</h3>
+            <div class="mb-2">
+                <input type="text" id="subjectSearchInput" placeholder="科目名で検索..." class="w-full p-2 border rounded-md text-sm">
+            </div>
+            <div id="favoriteSubjectsList" class="mb-4 max-h-32 overflow-y-auto"> 
+                <h4 class="text-sm font-semibold text-gray-600 mb-1">よく使う科目:</h4>
+            </div>
+            <div id="allSubjectsList" class="max-h-48 overflow-y-auto"> 
+                <h4 class="text-sm font-semibold text-gray-600 mb-1">すべての科目:</h4>
+            </div>
+            <div class="mt-4 flex flex-col sm:flex-row justify-end gap-2 sm:space-x-2">
+                <button id="clearSubjectButton" class="action-button bg-yellow-500 hover:bg-yellow-600 text-white w-full sm:w-auto">科目を空にする</button>
+                <button id="closeModalButton" class="action-button bg-gray-300 hover:bg-gray-400 text-gray-700 w-full sm:w-auto">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 設定 ---
+        const GLOBAL_MAX_PERIODS = 8; 
+        const DAYS_OF_WEEK_SHORT = ["日", "月", "火", "水", "木", "金", "土"]; 
+        const DAYS_OF_WEEK_FOR_TIMETABLE = ["月", "火", "水", "木", "金"]; 
+        const DAYS_OF_WEEK_ENG_FOR_TIMETABLE = ["monday", "tuesday", "wednesday", "thursday", "friday"]; 
+        const DEFAULT_SUBJECTS = [ 
+            { name: '国語', color: '#FFADAD', isFavorite: false },   
+            { name: '数学', color: '#A0C4FF', isFavorite: false },   
+            { name: '理科', color: '#FDFFB6', isFavorite: false },   
+            { name: '社会', color: '#CAFFBF', isFavorite: false },   
+            { name: '英語', color: '#FFD6A5', isFavorite: false },   
+            { name: '音楽', color: '#BDB2FF', isFavorite: false },   
+            { name: '美術', color: '#FFC6FF', isFavorite: false },   
+            { name: '保体', color: '#9BF6FF', isFavorite: false },   
+            { name: '技術', color: '#A9A9A9', isFavorite: false },   
+            { name: '家庭', color: '#FFDAB9', isFavorite: false },   
+            { name: '総合', color: '#E6E6FA', isFavorite: false },   
+            { name: '道徳', color: '#D3D3D3', isFavorite: false },   
+            { name: '学活', color: '#ADD8E6', isFavorite: false }    
+        ];
+
+        // --- DOM要素 ---
+        const appContent = document.getElementById('app-content');
+        const tabDaily = document.getElementById('tab-daily');
+        const tabRegularSetting = document.getElementById('tab-regular-setting');
+        const tabClubActivity = document.getElementById('tab-club-activity'); 
+        const tabSubjects = document.getElementById('tab-subjects');
+        
+        const subjectModal = document.getElementById('subjectModal');
+        const closeModalButton = document.getElementById('closeModalButton');
+        const clearSubjectButton = document.getElementById('clearSubjectButton');
+        const favoriteSubjectsList = document.getElementById('favoriteSubjectsList');
+        const allSubjectsList = document.getElementById('allSubjectsList');
+        const subjectSearchInput = document.getElementById('subjectSearchInput');
+
+        // --- アプリケーションの状態 ---
+        let currentView = 'daily'; 
+        let subjects = [];
+        let regularTimetable = {}; 
+        let dailyTimetables = {}; 
+        let maxPeriodsConfig = {}; 
+        let clubActivitySchedules = {}; // { "YYYY-MM-DD": true/false/undefined }
+
+        let selectedDateForDailyView = new Date();
+        let calendarDisplayMonth = new Date(); 
+        
+        let editingSlot = { type: null, day: null, period: null, date: null };
+
+        // --- 初期化処理 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            calendarDisplayMonth.setDate(1); 
+            setActiveTab(currentView);
+            render();
+
+            tabDaily.addEventListener('click', () => switchView('daily'));
+            tabRegularSetting.addEventListener('click', () => switchView('regular-setting'));
+            tabClubActivity.addEventListener('click', () => switchView('club-activity')); 
+            tabSubjects.addEventListener('click', () => switchView('subjects'));
+
+            closeModalButton.addEventListener('click', closeSubjectModal);
+            clearSubjectButton.addEventListener('click', () => selectSubjectForSlot(null));
+            subjectSearchInput.addEventListener('input', renderSubjectSelectionModalContent);
+        });
+
+        // --- データ永続化 ---
+        function saveData() {
+            localStorage.setItem('timetableApp_subjects', JSON.stringify(subjects));
+            localStorage.setItem('timetableApp_regularTimetable', JSON.stringify(regularTimetable));
+            localStorage.setItem('timetableApp_dailyTimetables', JSON.stringify(dailyTimetables));
+            localStorage.setItem('timetableApp_currentView', currentView);
+            localStorage.setItem('timetableApp_maxPeriodsConfig', JSON.stringify(maxPeriodsConfig));
+            localStorage.setItem('timetableApp_clubActivitySchedules', JSON.stringify(clubActivitySchedules)); 
+        }
+
+        function loadData() {
+            const storedSubjects = localStorage.getItem('timetableApp_subjects');
+            if (storedSubjects) {
+                subjects = JSON.parse(storedSubjects);
+            } else {
+                subjects = DEFAULT_SUBJECTS.map((subject, index) => ({
+                    id: `subj_default_${index}_${Date.now()}`, 
+                    name: subject.name,
+                    color: subject.color || generateRandomColor(), 
+                    isFavorite: subject.isFavorite || false
+                }));
+            }
+
+            maxPeriodsConfig = JSON.parse(localStorage.getItem('timetableApp_maxPeriodsConfig')) || initializeMaxPeriodsConfig();
+            regularTimetable = JSON.parse(localStorage.getItem('timetableApp_regularTimetable')) || initializeRegularTimetable();
+            dailyTimetables = JSON.parse(localStorage.getItem('timetableApp_dailyTimetables')) || {};
+            clubActivitySchedules = JSON.parse(localStorage.getItem('timetableApp_clubActivitySchedules')) || {}; 
+            currentView = localStorage.getItem('timetableApp_currentView') || 'daily';
+            
+            DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(day => { 
+                const dayMaxPeriods = (maxPeriodsConfig && typeof maxPeriodsConfig[day] === 'number') ? maxPeriodsConfig[day] : GLOBAL_MAX_PERIODS;
+                if (!regularTimetable[day] || !Array.isArray(regularTimetable[day])) { // 配列であるかも確認
+                    regularTimetable[day] = Array(dayMaxPeriods).fill(null);
+                } else {
+                    if (regularTimetable[day].length > dayMaxPeriods) {
+                        regularTimetable[day] = regularTimetable[day].slice(0, dayMaxPeriods);
+                    }
+                    while (regularTimetable[day].length < dayMaxPeriods) {
+                        regularTimetable[day].push(null);
+                    }
+                }
+            });
+        }
+        
+        function initializeMaxPeriodsConfig() {
+            const config = {};
+            DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(day => { 
+                config[day] = GLOBAL_MAX_PERIODS; 
+            });
+            return config;
+        }
+
+        function initializeRegularTimetable() {
+            const tt = {};
+            DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(day => { 
+                tt[day] = Array((maxPeriodsConfig && typeof maxPeriodsConfig[day] === 'number') ? maxPeriodsConfig[day] : GLOBAL_MAX_PERIODS).fill(null);
+            });
+            return tt;
+        }
+
+        // --- 表示切り替え ---
+        function switchView(viewName) {
+            currentView = viewName;
+            if (viewName === 'club-activity') { 
+                calendarDisplayMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1); 
+            }
+            setActiveTab(viewName);
+            render();
+            saveData();
+        }
+
+        function setActiveTab(viewName) {
+            [tabDaily, tabRegularSetting, tabClubActivity, tabSubjects].forEach(tab => tab.classList.remove('active')); 
+            if (viewName === 'daily') tabDaily.classList.add('active');
+            else if (viewName === 'regular-setting') tabRegularSetting.classList.add('active');
+            else if (viewName === 'club-activity') tabClubActivity.classList.add('active'); 
+            else if (viewName === 'subjects') tabSubjects.classList.add('active');
+        }
+
+        // --- メインレンダー関数 ---
+        function render() {
+            appContent.innerHTML = '';
+            if (currentView === 'daily') {
+                renderDailyView();
+            } else if (currentView === 'regular-setting') {
+                renderRegularSettingView();
+            } else if (currentView === 'club-activity') { 
+                renderClubActivityView();
+            } else if (currentView === 'subjects') {
+                renderSubjectsView();
+            }
+        }
+
+        // --- 各ビューのレンダー関数 ---
+        function renderDailyView() {
+            const todayStr = formatDate(selectedDateForDailyView);
+            const dayOfWeekIndex = (selectedDateForDailyView.getDay() + 6) % 7; 
+            const dayOfWeekEng = (dayOfWeekIndex >= 0 && dayOfWeekIndex < DAYS_OF_WEEK_ENG_FOR_TIMETABLE.length) ? DAYS_OF_WEEK_ENG_FOR_TIMETABLE[dayOfWeekIndex] : null;
+            const currentDayMaxPeriods = dayOfWeekEng && maxPeriodsConfig && typeof maxPeriodsConfig[dayOfWeekEng] === 'number' ? maxPeriodsConfig[dayOfWeekEng] : GLOBAL_MAX_PERIODS;
+
+            let scheduleToDisplay = Array(currentDayMaxPeriods).fill(null);
+            let scheduleType = dayOfWeekEng ? '通常' : '休日/設定なし';
+            let memo = "";
+
+            if (dailyTimetables && dailyTimetables[todayStr]) {
+                memo = dailyTimetables[todayStr].memo || "";
+                if (dailyTimetables[todayStr].type === 'irregular' && Array.isArray(dailyTimetables[todayStr].schedule)) {
+                    scheduleToDisplay = dailyTimetables[todayStr].schedule;
+                    scheduleType = '変則';
+                } else if (dayOfWeekEng && regularTimetable && Array.isArray(regularTimetable[dayOfWeekEng]) && dailyTimetables[todayStr].type !== 'irregular') {
+                    scheduleToDisplay = regularTimetable[dayOfWeekEng];
+                }
+            } else if (dayOfWeekEng && regularTimetable && Array.isArray(regularTimetable[dayOfWeekEng])) {
+                scheduleToDisplay = regularTimetable[dayOfWeekEng];
+            }
+            
+            let finalSchedule = Array(currentDayMaxPeriods).fill(null);
+            if (Array.isArray(scheduleToDisplay)) {
+                for (let i = 0; i < currentDayMaxPeriods; i++) {
+                    if (i < scheduleToDisplay.length) {
+                        finalSchedule[i] = scheduleToDisplay[i];
+                    }
+                }
+            }
+            scheduleToDisplay = finalSchedule;
+
+            let html = `
+                <div class="bg-gray-50 p-3 sm:p-4 rounded-lg shadow">
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-700">今日の時間割 (${scheduleType})</h2>
+                        <input type="date" id="datePicker" value="${todayStr}" class="p-2 border rounded-md w-full sm:w-auto text-sm">
+                    </div>
+                    <div class="grid grid-cols-1 gap-2 mb-4">`;
+
+            for (let i = 0; i < currentDayMaxPeriods; i++) {
+                const subjectId = scheduleToDisplay[i];
+                const subject = findSubjectById(subjectId);
+                html += `
+                    <div class="period-slot p-2 sm:p-3 rounded-md shadow-sm bg-white flex items-center" data-period="${i}">
+                        <span class="font-semibold mr-2 w-8 sm:w-10 text-right text-xs sm:text-sm">${i + 1}限:</span>
+                        <span class="flex-grow text-left ml-2 text-xs sm:text-sm">${subject ? subject.name : '未設定'}</span>
+                        ${subject ? `<span class="subject-color-indicator" style="background-color: ${subject.color || '#cccccc'};"></span>` : '<span class="w-2.5 h-2.5 sm:w-3 sm:h-3 ml-2 flex-shrink-0"></span>'}
+                    </div>`;
+            }
+            html += `</div>`;
+            
+            html += `
+                <div class="mt-4">
+                    <label for="dailyMemo" class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">メモ:</label>
+                    <textarea id="dailyMemo" rows="3" class="w-full p-2 border rounded-md shadow-sm text-sm" placeholder="今日の持ち物や連絡事項など">${memo}</textarea>
+                    <button id="saveMemoButton" class="mt-2 action-button action-button-blue w-full sm:w-auto">メモを保存</button>
+                </div>
+                <div class="mt-4 flex flex-col sm:flex-row gap-2">`; 
+            
+            if (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) { 
+                if (!dailyTimetables || !dailyTimetables[todayStr] || dailyTimetables[todayStr].type === 'regular') {
+                    html += `<button id="switchToIrregularButton" class="action-button action-button-green w-full sm:w-auto">この日を変則時間割にする</button>`;
+                } 
+                else if (dailyTimetables[todayStr] && dailyTimetables[todayStr].type === 'irregular') {
+                    html += `<button id="importRegularTimetableButton" class="action-button action-button-orange w-full sm:w-auto">通常時間割で上書き</button>`;
+                }
+            }
+            html += `</div></div>`;
+            appContent.innerHTML = html;
+
+            document.getElementById('datePicker').addEventListener('change', (e) => {
+                selectedDateForDailyView = new Date(e.target.value + 'T00:00:00'); 
+                renderDailyView();
+            });
+            
+            document.querySelectorAll('.period-slot').forEach(slot => {
+                slot.addEventListener('click', (e) => {
+                    const period = parseInt(e.currentTarget.dataset.period);
+                    if ((!dailyTimetables[todayStr] || dailyTimetables[todayStr].type === 'regular') && dayOfWeekEng) {
+                        const baseScheduleSrc = (regularTimetable && regularTimetable[dayOfWeekEng]) ? regularTimetable[dayOfWeekEng] : Array(currentDayMaxPeriods).fill(null);
+                        const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => baseScheduleSrc[idx] || null);
+                        dailyTimetables[todayStr] = { type: 'irregular', schedule: newSchedule, memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" };
+                        saveData();
+                        renderDailyView(); 
+                        openSubjectModal('daily', null, period, todayStr);
+                        return; 
+                    }
+                    if(dayOfWeekEng) { 
+                       openSubjectModal('daily', null, period, todayStr);
+                    }
+                });
+            });
+
+            const saveMemoButton = document.getElementById('saveMemoButton');
+            if (saveMemoButton) {
+                saveMemoButton.addEventListener('click', () => {
+                    const memoText = document.getElementById('dailyMemo').value;
+                    if (!dailyTimetables[todayStr]) {
+                        const baseSchedule = (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) 
+                                           ? [...regularTimetable[dayOfWeekEng]] 
+                                           : Array(currentDayMaxPeriods).fill(null); 
+                        dailyTimetables[todayStr] = { 
+                            type: dayOfWeekEng ? 'regular' : 'irregular', 
+                            schedule: baseSchedule, 
+                            memo: memoText 
+                        };
+                    } else {
+                        dailyTimetables[todayStr].memo = memoText;
+                    }
+                    saveData();
+                    alert('メモを保存しました。');
+                });
+            }
+            
+            const switchToIrregularButton = document.getElementById('switchToIrregularButton');
+            if (switchToIrregularButton) {
+                switchToIrregularButton.addEventListener('click', () => {
+                    const baseScheduleSrc = (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) ? regularTimetable[dayOfWeekEng] : Array(currentDayMaxPeriods).fill(null);
+                    const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => baseScheduleSrc[idx] || null);
+                    dailyTimetables[todayStr] = { type: 'irregular', schedule: newSchedule, memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" };
+                    saveData();
+                    renderDailyView();
+                });
+            }
+
+            const importRegularTimetableButton = document.getElementById('importRegularTimetableButton');
+            if (importRegularTimetableButton) {
+                importRegularTimetableButton.addEventListener('click', () => {
+                    if (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) {
+                        if (confirm('現在の予定を破棄し、この曜日の通常時間割で上書きしますか？')) {
+                            const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => regularTimetable[dayOfWeekEng][idx] || null);
+                            dailyTimetables[todayStr] = { 
+                                type: 'irregular', 
+                                schedule: newSchedule, 
+                                memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" 
+                            };
+                            saveData();
+                            renderDailyView();
+                        }
+                    } else {
+                        alert('この曜日の通常時間割が設定されていません。');
+                    }
+                });
+            }
+        }
+
+        function renderRegularSettingView() {
+            let html = `
+                <div class="bg-gray-50 p-3 sm:p-4 rounded-lg shadow">
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6 gap-2">
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-700">通常時間割の設定と確認</h2>
+                        <button id="clearAllRegularTimetableButton" class="action-button action-button-red text-xs sm:text-sm">全ての通常時間割をクリア</button>
+                    </div>
+
+                    <div class="mb-6 sm:mb-8 p-3 sm:p-4 border rounded-lg bg-white">
+                        <h3 class="text-base sm:text-lg font-semibold text-gray-700 mb-2">1. コマ数設定と科目編集</h3>
+                        <p class="text-xs sm:text-sm text-gray-600 mb-1">各曜日のコマ数を設定し、コマをクリックして科目を割り当ててください。</p>
+                        <p class="text-xs text-gray-500 mb-4">コマ数を変更すると、超過分の科目は削除されます。</p>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full border-collapse timetable-table">
+                                <thead>
+                                    <tr>
+                                        <th class="w-12 sm:w-16 align-top">時間</th>
+                                        ${DAYS_OF_WEEK_FOR_TIMETABLE.map((day, index) => { 
+                                            const dayEng = DAYS_OF_WEEK_ENG_FOR_TIMETABLE[index];
+                                            let options = '';
+                                            for (let k=1; k <= GLOBAL_MAX_PERIODS; k++) {
+                                                options += `<option value="${k}" ${ ((maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS) == k ? 'selected' : ''}>${k}限まで</option>`;
+                                            }
+                                            return `
+                                                <th class="min-w-[120px] sm:min-w-[150px] align-top">
+                                                    <div class="font-semibold">${day}</div>
+                                                    <select data-day="${dayEng}" class="max-periods-selector mt-1 p-1 border rounded-md text-xs w-full">
+                                                        ${options}
+                                                    </select>
+                                                    <button data-day-clear="${dayEng}" class="clear-day-btn mt-1 text-xs px-2 py-1 bg-red-400 hover:bg-red-500 text-white rounded">この曜日をクリア</button>
+                                                </th>`;
+                                        }).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+            let displayMaxPeriods = 0;
+            DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(dayEng => {
+                if (((maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS) > displayMaxPeriods) {
+                    displayMaxPeriods = ((maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS);
+                }
+            });
+
+            for (let i = 0; i < displayMaxPeriods; i++) {
+                html += `<tr><td class="period-label">${i + 1}限</td>`;
+                DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach((dayEng) => { 
+                    const dayMaxP = (maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS;
+                    if (i < dayMaxP) {
+                        const subjectId = (regularTimetable && regularTimetable[dayEng]) ? regularTimetable[dayEng][i] : null;
+                        const subject = findSubjectById(subjectId);
+                        html += `
+                            <td class="period-slot-editable timetable-table" data-day="${dayEng}" data-period="${i}">
+                                ${subject ? subject.name : '<span class="text-gray-400">- 未設定 -</span>'}
+                                ${subject ? `<span class="subject-color-indicator" style="background-color: ${subject.color || '#cccccc'};"></span>` : ''}
+                            </td>`;
+                    } else {
+                        html += `<td class="bg-gray-100 timetable-table"></td>`;
+                    }
+                });
+                html += `</tr>`;
+            }
+            html += `       </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="p-3 sm:p-4 border rounded-lg bg-white">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-base sm:text-lg font-semibold text-gray-700">2. 通常時間割の確認</h3>
+                        </div>
+                        <div id="printableArea" class="overflow-x-auto"> 
+                            <table class="min-w-full border-collapse timetable-table">
+                                <thead>
+                                    <tr>
+                                        <th class="w-12 sm:w-16">時間</th>
+                                        ${DAYS_OF_WEEK_FOR_TIMETABLE.map(day => `<th>${day}</th>`).join('')} 
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+            let overallMaxPeriodsToDisplay = 0; 
+            DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(dayEng => {
+                const currentDayMax = (maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS;
+                if (currentDayMax > overallMaxPeriodsToDisplay) {
+                    overallMaxPeriodsToDisplay = currentDayMax;
+                }
+            });
+
+            for (let i = 0; i < overallMaxPeriodsToDisplay; i++) {
+                html += `<tr><td class="period-label">${i + 1}限</td>`;
+                DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(dayEng => { 
+                    const dayMaxP = (maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS;
+                    html += `<td class="period-slot-displayonly timetable-table">`; 
+                    if (i < dayMaxP) {
+                        const subjectId = (regularTimetable && regularTimetable[dayEng]) ? regularTimetable[dayEng][i] : null;
+                        const subject = findSubjectById(subjectId);
+                        if (subject) {
+                            html += `<span class="font-medium">${subject.name}</span>`;
+                            html += `<span class="subject-color-indicator" style="background-color: ${subject.color || '#cccccc'};"></span>`;
+                        } else {
+                            html += `-`;
+                        }
+                    } else {
+                        html += ` `; 
+                    }
+                    html += `</td>`;
+                });
+                html += `</tr>`;
+            }
+            html += `           </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>`;
+            appContent.innerHTML = html;
+
+            document.querySelectorAll('.max-periods-selector').forEach(select => {
+                select.addEventListener('change', (e) => {
+                    const dayEng = e.target.dataset.day;
+                    const newMax = parseInt(e.target.value);
+                    updateMaxPeriodsForDay(dayEng, newMax);
+                });
+            });
+
+            document.querySelectorAll('.period-slot-editable').forEach(slot => {
+                slot.addEventListener('click', (e) => {
+                    const day = e.currentTarget.dataset.day;
+                    const period = parseInt(e.currentTarget.dataset.period);
+                    openSubjectModal('regular', day, period);
+                });
+            });
+            
+            document.querySelectorAll('.clear-day-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const dayEngToClear = e.target.dataset.dayClear;
+                    if (confirm(`${DAYS_OF_WEEK_FOR_TIMETABLE[DAYS_OF_WEEK_ENG_FOR_TIMETABLE.indexOf(dayEngToClear)]}曜日の通常時間割を全てクリアしますか？`)) {
+                        clearRegularTimetableForDay(dayEngToClear);
+                    }
+                });
+            });
+
+            document.getElementById('clearAllRegularTimetableButton').addEventListener('click', () => {
+                if (confirm('全ての曜日の通常時間割をクリアしますか？この操作は元に戻せません。')) {
+                    clearAllRegularTimetables();
+                }
+            });
+        }
+
+        function renderClubActivityView() {
+            const year = calendarDisplayMonth.getFullYear();
+            const month = calendarDisplayMonth.getMonth(); // 0-11
+
+            let html = `
+                <div id="clubCalendarContainer" class="bg-gray-50 p-3 sm:p-4 rounded-lg shadow">
+                    <div class="flex justify-between items-center mb-4">
+                        <button id="prevMonthBtn" class="action-button bg-gray-200 hover:bg-gray-300 text-gray-700">&lt; 前月</button>
+                        <h2 class="text-lg sm:text-xl font-semibold text-gray-700">${year}年 ${month + 1}月</h2>
+                        <button id="nextMonthBtn" class="action-button bg-gray-200 hover:bg-gray-300 text-gray-700">次月 &gt;</button>
+                    </div>
+
+                    <table class="calendar mb-6">
+                        <thead>
+                            <tr>
+                                ${DAYS_OF_WEEK_SHORT.map(day => `<th>${day}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody id="calendarBody">
+                            </tbody>
+                    </table>
+                    <p class="text-xs text-center text-gray-500 mb-4">日付をクリックして部活動の有無 (◯:有り, ✕:無し) を切り替えます。</p>
+                </div>`;
+            appContent.innerHTML = html;
+
+            renderCalendarBodyClub(year, month); 
+
+            document.getElementById('prevMonthBtn').addEventListener('click', () => {
+                calendarDisplayMonth.setMonth(calendarDisplayMonth.getMonth() - 1);
+                renderClubActivityView();
+            });
+            document.getElementById('nextMonthBtn').addEventListener('click', () => {
+                calendarDisplayMonth.setMonth(calendarDisplayMonth.getMonth() + 1);
+                renderClubActivityView();
+            });
+        }
+
+        function renderCalendarBodyClub(year, month) {
+            const calendarBody = document.getElementById('calendarBody');
+            if (!calendarBody) return; 
+            calendarBody.innerHTML = ''; 
+            const firstDayOfMonth = new Date(year, month, 1).getDay(); 
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+            today.setHours(0,0,0,0); 
+
+            let date = 1;
+            for (let i = 0; i < 6; i++) { 
+                let row = document.createElement('tr');
+                for (let j = 0; j < 7; j++) { 
+                    let cell = document.createElement('td');
+                    if (i === 0 && j < firstDayOfMonth) {
+                        cell.classList.add('other-month');
+                    } else if (date > daysInMonth) {
+                        cell.classList.add('other-month');
+                    } else {
+                        const currentDate = new Date(year, month, date);
+                        currentDate.setHours(0,0,0,0); 
+                        cell.textContent = date;
+                        const dateKey = formatDate(currentDate);
+                        cell.dataset.date = dateKey;
+
+                        if (formatDate(currentDate) === formatDate(today)) {
+                            cell.classList.add('today');
+                        }
+                        
+                        const clubStatus = clubActivitySchedules[dateKey];
+                        const marker = document.createElement('span');
+                        marker.classList.add('club-status-marker');
+                        if (clubStatus === true) {
+                            marker.textContent = '◯';
+                            marker.classList.add('club-present');
+                        } else if (clubStatus === false) {
+                            marker.textContent = '✕'; 
+                            marker.classList.add('club-absent');
+                        }
+                        cell.appendChild(marker);
+
+
+                        cell.addEventListener('click', (e) => {
+                            toggleClubActivityStatus(e.currentTarget.dataset.date);
+                        });
+                        date++;
+                    }
+                    row.appendChild(cell);
+                }
+                calendarBody.appendChild(row);
+                if (date > daysInMonth && i > 3) break; 
+            }
+        }
+        
+        function toggleClubActivityStatus(dateKey) {
+            const currentStatus = clubActivitySchedules[dateKey];
+            if (currentStatus === undefined) { 
+                clubActivitySchedules[dateKey] = true;
+            } else if (currentStatus === true) { 
+                clubActivitySchedules[dateKey] = false;
+            } else if (currentStatus === false) { 
+                delete clubActivitySchedules[dateKey];
+            }
+            saveData();
+            renderCalendarBodyClub(calendarDisplayMonth.getFullYear(), calendarDisplayMonth.getMonth()); 
+        }
+
+
+        function updateMaxPeriodsForDay(dayEng, newMax) {
+            maxPeriodsConfig[dayEng] = newMax;
+            if (!regularTimetable[dayEng] || !Array.isArray(regularTimetable[dayEng])) { // 配列であるかも確認
+                regularTimetable[dayEng] = Array(newMax).fill(null);
+            } else {
+                if (regularTimetable[dayEng].length > newMax) {
+                    regularTimetable[dayEng] = regularTimetable[dayEng].slice(0, newMax);
+                }
+                while (regularTimetable[dayEng].length < newMax) {
+                    regularTimetable[dayEng].push(null);
+                }
+            }
+            saveData();
+            renderRegularSettingView(); 
+        }
+
+        function clearRegularTimetableForDay(dayEng) {
+            const dayMaxP = (maxPeriodsConfig && typeof maxPeriodsConfig[dayEng] === 'number') ? maxPeriodsConfig[dayEng] : GLOBAL_MAX_PERIODS;
+            regularTimetable[dayEng] = Array(dayMaxP).fill(null);
+            saveData();
+            renderRegularSettingView();
+        }
+
+        function clearAllRegularTimetables() {
+            DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(dayEng => {
+                const dayMaxP = (maxPeriodsConfig && typeof maxPeriodsConfig[dayEng] === 'number') ? maxPeriodsConfig[dayEng] : GLOBAL_MAX_PERIODS;
+                regularTimetable[dayEng] = Array(dayMaxP).fill(null);
+            });
+            saveData();
+            renderRegularSettingView();
+        }
+        
+        function renderSubjectsView() {
+            let html = `
+                <div class="bg-gray-50 p-3 sm:p-4 rounded-lg shadow">
+                    <h2 class="text-lg sm:text-xl font-semibold text-gray-700 mb-4">科目管理</h2>
+                    <div class="mb-6 p-3 sm:p-4 border border-blue-200 rounded-lg bg-blue-50">
+                        <h3 class="text-base sm:text-lg font-semibold text-blue-700 mb-2">新しい科目を追加</h3>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <input type="text" id="newSubjectName" placeholder="科目名 (例: 数学)" class="flex-grow p-2 border rounded-md text-sm">
+                            <input type="color" id="newSubjectColor" value="${generateRandomColor()}" class="p-1 border rounded-md h-10 w-full sm:w-auto">
+                            <button id="addSubjectButton" class="action-button action-button-blue">追加</button>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-semibold text-gray-700 mb-2">登録済み科目リスト</h3>
+                        <ul id="subjectList" class="space-y-2">`;
+            if (subjects.length === 0) {
+                html += `<li class="text-gray-500 p-3 bg-white rounded-md shadow-sm text-sm">まだ科目が登録されていません。</li>`;
+            }
+            subjects.forEach(subject => {
+                html += `
+                    <li class="subject-item bg-white p-2 sm:p-3 rounded-md shadow-sm">
+                        <div class="flex items-center min-w-0">
+                            <span class="subject-color-indicator mr-2 sm:mr-3 flex-shrink-0" style="background-color: ${subject.color || '#cccccc'}; width: 1rem; height: 1rem; sm:width: 1.25rem; sm:height: 1.25rem;"></span>
+                            <span class="font-medium break-all text-sm sm:text-base">${subject.name}</span>
+                        </div>
+                        <div class="flex items-center space-x-1 sm:space-x-2 flex-shrink-0 ml-2">
+                            <button class="fav-btn ${subject.isFavorite ? 'is-favorite' : 'not-favorite'}" data-id="${subject.id}">
+                                ${subject.isFavorite ? '★' : '☆'} <span class="hidden sm:inline">${subject.isFavorite ? 'よく使う' : 'よく使う'}</span>
+                            </button>
+                            <button class="delete-btn" data-id="${subject.id}">削除</button>
+                        </div>
+                    </li>`;
+            });
+            html += `</ul></div></div>`;
+            appContent.innerHTML = html;
+
+            document.getElementById('addSubjectButton').addEventListener('click', addSubject);
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', (e) => deleteSubject(e.target.dataset.id));
+            });
+            document.querySelectorAll('.fav-btn').forEach(button => {
+                button.addEventListener('click', (e) => toggleFavoriteSubject(e.target.dataset.id));
+            });
+        }
+
+        // --- 科目操作 ---
+        function addSubject() {
+            const nameInput = document.getElementById('newSubjectName');
+            const colorInput = document.getElementById('newSubjectColor');
+            const name = nameInput.value.trim();
+            const color = colorInput.value;
+
+            if (name) {
+                if (subjects.find(s => s.name.toLowerCase() === name.toLowerCase())) {
+                    alert('同じ名前の科目が既に存在します。'); return;
+                }
+                subjects.push({ 
+                    id: 'subj_custom_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                    name, color, isFavorite: false 
+                });
+                nameInput.value = ''; colorInput.value = generateRandomColor(); 
+                saveData(); render(); 
+            } else {
+                alert('科目名を入力してください。');
+            }
+        }
+
+        function deleteSubject(subjectId) {
+            const subjectToDelete = findSubjectById(subjectId);
+            if (!subjectToDelete) return;
+            if (confirm(`科目「${subjectToDelete.name}」を削除しますか？\n関連する時間割からこの科目が「未設定」になります。`)) {
+                subjects = subjects.filter(s => s.id !== subjectId);
+                for (const day in regularTimetable) {
+                    if (Array.isArray(regularTimetable[day])) { // Check if it's an array
+                        regularTimetable[day] = regularTimetable[day].map(id => id === subjectId ? null : id);
+                    }
+                }
+                for (const date in dailyTimetables) {
+                    if (dailyTimetables[date] && dailyTimetables[date].schedule && Array.isArray(dailyTimetables[date].schedule)) { 
+                        dailyTimetables[date].schedule = dailyTimetables[date].schedule.map(id => id === subjectId ? null : id);
+                    }
+                }
+                saveData(); render();
+            }
+        }
+        
+        function toggleFavoriteSubject(subjectId) {
+            const subject = findSubjectById(subjectId);
+            if (subject) {
+                subject.isFavorite = !subject.isFavorite;
+                saveData();
+                if (currentView === 'subjects') render();
+                else if (subjectModal.style.display === 'flex') renderSubjectSelectionModalContent();
+            }
+        }
+
+        function findSubjectById(id) {
+            if (!id) return null; // Guard against null/undefined id
+            return subjects.find(s => s.id === id);
+        }
+
+        // --- 科目選択モーダル ---
+        function openSubjectModal(type, day, period, dateStr = null) {
+            editingSlot = { type, day, period, date: dateStr };
+            renderSubjectSelectionModalContent();
+            subjectModal.style.display = 'flex';
+            subjectSearchInput.focus();
+        }
+
+        function closeSubjectModal() {
+            subjectModal.style.display = 'none';
+            editingSlot = { type: null, day: null, period: null, date: null };
+            subjectSearchInput.value = ''; 
+        }
+        
+        function renderSubjectSelectionModalContent() {
+            const searchTerm = subjectSearchInput.value.toLowerCase();
+            const favSubjects = subjects.filter(s => s.isFavorite && s.name.toLowerCase().includes(searchTerm)).sort((a,b) => a.name.localeCompare(b.name, 'ja'));
+            const otherSubjects = subjects.filter(s => !s.isFavorite && s.name.toLowerCase().includes(searchTerm)).sort((a,b) => a.name.localeCompare(b.name, 'ja'));
+
+            let favHtml = '<h4 class="text-sm font-semibold text-gray-600 mb-1">よく使う科目:</h4>';
+            favHtml += favSubjects.length > 0 ? favSubjects.map(s => createSubjectTagHtml(s)).join('') : `<p class="text-xs text-gray-500 p-2">該当なし</p>`;
+            favoriteSubjectsList.innerHTML = favHtml;
+            
+            let allHtml = '<h4 class="text-sm font-semibold text-gray-600 mb-1">すべての科目:</h4>';
+            if (subjects.length === 0) allHtml += `<p class="text-xs text-gray-500 p-2">科目が登録されていません。</p>`;
+            else allHtml += otherSubjects.length > 0 ? otherSubjects.map(s => createSubjectTagHtml(s)).join('') : `<p class="text-xs text-gray-500 p-2">該当なし</p>`;
+            allSubjectsList.innerHTML = allHtml;
+
+            document.querySelectorAll('.subject-tag-selectable').forEach(tag => {
+                tag.addEventListener('click', (e) => selectSubjectForSlot(e.currentTarget.dataset.subjectId));
+            });
+        }
+
+        function createSubjectTagHtml(subject) {
+            return `
+                <div class="subject-tag subject-tag-selectable p-2 my-1 border rounded-md flex items-center ${subject.isFavorite ? 'favorite-tag' : 'bg-gray-100 hover:bg-gray-200'}" data-subject-id="${subject.id}">
+                    <span class="subject-color-indicator mr-2 flex-shrink-0" style="background-color: ${subject.color || '#cccccc'};"></span>
+                    <span class="flex-grow break-all text-sm">${subject.name}</span>
+                </div>`;
+        }
+
+        function selectSubjectForSlot(subjectId) {
+            const { type, day, period, date } = editingSlot;
+            let dayEng = day; 
+            let currentDayMaxPeriods;
+
+            if (type === 'regular') {
+                currentDayMaxPeriods = (maxPeriodsConfig && typeof maxPeriodsConfig[dayEng] === 'number') ? maxPeriodsConfig[dayEng] : GLOBAL_MAX_PERIODS;
+            } else if (type === 'daily' && date) {
+                const dateObj = new Date(date + 'T00:00:00');
+                const dayOfWeekIndex = (dateObj.getDay() + 6) % 7;
+                dayEng = (dayOfWeekIndex >= 0 && dayOfWeekIndex < DAYS_OF_WEEK_ENG_FOR_TIMETABLE.length) ? DAYS_OF_WEEK_ENG_FOR_TIMETABLE[dayOfWeekIndex] : null;
+                currentDayMaxPeriods = dayEng && maxPeriodsConfig && typeof maxPeriodsConfig[dayEng] === 'number' ? maxPeriodsConfig[dayEng] : GLOBAL_MAX_PERIODS;
+            } else {
+                currentDayMaxPeriods = GLOBAL_MAX_PERIODS; 
+            }
+
+
+            if (type === 'regular' && dayEng && period !== null && period < currentDayMaxPeriods) {
+                if (!regularTimetable[dayEng] || !Array.isArray(regularTimetable[dayEng]) || regularTimetable[dayEng].length !== currentDayMaxPeriods) {
+                     regularTimetable[dayEng] = Array(currentDayMaxPeriods).fill(null);
+                }
+                regularTimetable[dayEng][period] = subjectId;
+            } else if (type === 'daily' && date && period !== null && period < currentDayMaxPeriods) {
+                 if (!dayEng) { 
+                    console.warn("Cannot edit timetable for weekends from daily view directly unless it's already irregular.");
+                    closeSubjectModal();
+                    return;
+                }
+                if (!dailyTimetables[date] || !dailyTimetables[date].schedule || !Array.isArray(dailyTimetables[date].schedule)) { 
+                    const baseScheduleSrc = (dayEng && regularTimetable && regularTimetable[dayEng]) 
+                                          ? regularTimetable[dayEng] 
+                                          : Array(currentDayMaxPeriods).fill(null);
+                    const baseSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => baseScheduleSrc[idx] || null);
+                    dailyTimetables[date] = { type: 'irregular', schedule: baseSchedule, memo: (dailyTimetables[date] && dailyTimetables[date].memo) || "" };
+                } else {
+                     dailyTimetables[date].type = 'irregular'; 
+                }
+                
+                let currentSchedule = dailyTimetables[date].schedule || [];
+                const newPaddedSchedule = Array(currentDayMaxPeriods).fill(null);
+                for (let i = 0; i < currentDayMaxPeriods; i++) {
+                    if (i < currentSchedule.length) newPaddedSchedule[i] = currentSchedule[i];
+                }
+                dailyTimetables[date].schedule = newPaddedSchedule;
+                dailyTimetables[date].schedule[period] = subjectId;
+            }
+            saveData();
+            render(); 
+            closeSubjectModal();
+        }
+
+        // --- ヘルパー関数 ---
+        function formatDate(date) { 
+            if (!date) return "";
+            // Check if date is already a string in "YYYY-MM-DD" format
+            if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                return date;
+            }
+            const d = new Date(date); // Handles Date objects or parsable date strings
+            if (isNaN(d.getTime())) {
+                console.warn("Invalid date passed to formatDate:", date);
+                return ""; 
+            }
+            const year = d.getFullYear();
+            const month = ('0' + (d.getMonth() + 1)).slice(-2);
+            const dayOfMonth = ('0' + d.getDate()).slice(-2);
+            return `${year}-${month}-${dayOfMonth}`;
+        }
+        
+        function generateRandomColor() {
+            return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+        }
+
+    </script>
+</body>
+</html>
