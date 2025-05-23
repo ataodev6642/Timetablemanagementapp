@@ -3,14 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>時間割管理アプリ - 中学生向け 簡単スケジュール作成</title>
-<meta name="description" content="シンプルで使いやすい時間割管理アプリ。通常時間割、日々の変則的な予定、部活動の有無をカレンダーで簡単に管理。中学校生活のスケジュール管理をサポートします。">
+    <title>時間割管理アプリ - 中学生向け 簡単スケジュール作成</title>
+    <meta name="description" content="シンプルで使いやすい時間割管理アプリ。通常時間割、日々の変則的な予定、部活動の有無をカレンダーで簡単に管理。中学校生活のスケジュール管理をサポートします。">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet"></noscript>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Noto Sans JP', sans-serif;
             background-color: #f4f7f6;
+            opacity: 0; 
+            transition: opacity 0.3s ease-in-out; /* 少し短く */
+        }
+        body.loaded {
+            opacity: 1;
         }
         .tab-button.active {
             border-color: #3b82f6;
@@ -18,10 +24,10 @@
             color: white;
         }
         .tab-button {
-            transition: all 0.3s ease-in-out;
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out;
         }
         .modal {
-            display: none;
+            display: none; /* flexからnoneへ変更 */
             position: fixed;
             z-index: 100;
             left: 0;
@@ -30,10 +36,11 @@
             height: 100%;
             overflow: auto;
             background-color: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            /* align-items と justify-content は display:flex とセットなので、noneの場合は不要 */
             padding: 1rem;
+        }
+        .modal.show { /* モーダル表示用のクラス */
+            display: flex;
         }
         .modal-content {
             background-color: #fff;
@@ -162,39 +169,39 @@
             border-collapse: collapse;
         }
         .calendar th, .calendar td {
-            border: 1px solid #e5e7eb; /* gray-200 */
+            border: 1px solid #e5e7eb;
             padding: 0.5rem;
             text-align: center;
-            font-size: 0.875rem; /* text-sm */
-            height: 3.5rem; /* 固定の高さ */
-            position: relative; /* For event marker positioning */
+            font-size: 0.875rem;
+            height: 3.5rem;
+            position: relative;
         }
         .calendar th {
-            background-color: #f9fafb; /* gray-50 */
+            background-color: #f9fafb;
         }
         .calendar td {
             cursor: pointer;
         }
         .calendar td:hover {
-            background-color: #eff6ff; /* blue-50 */
+            background-color: #eff6ff;
         }
         .calendar .today {
-            background-color: #bfdbfe; /* blue-200 */
+            background-color: #bfdbfe;
             font-weight: bold;
         }
         .calendar .other-month {
-            color: #9ca3af; /* gray-400 */
+            color: #9ca3af;
         }
-        .calendar .club-status-marker { /* For ◯ or ✕ */
-            font-size: 1.25rem; /* text-xl for larger symbols */
+        .calendar .club-status-marker {
+            font-size: 1.25rem;
             font-weight: bold;
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
         }
-        .calendar .club-present { color: #10b981; } /* green-500 */
-        .calendar .club-absent { color: #ef4444; } /* red-500 */
+        .calendar .club-present { color: #10b981; }
+        .calendar .club-absent { color: #ef4444; }
     </style>
 </head>
 <body class="p-2 sm:p-4 md:p-8"> 
@@ -255,19 +262,9 @@
             { name: '学活', color: '#ADD8E6', isFavorite: false }    
         ];
 
-        // --- DOM要素 ---
-        const appContent = document.getElementById('app-content');
-        const tabDaily = document.getElementById('tab-daily');
-        const tabRegularSetting = document.getElementById('tab-regular-setting');
-        const tabClubActivity = document.getElementById('tab-club-activity'); 
-        const tabSubjects = document.getElementById('tab-subjects');
-        
-        const subjectModal = document.getElementById('subjectModal');
-        const closeModalButton = document.getElementById('closeModalButton');
-        const clearSubjectButton = document.getElementById('clearSubjectButton');
-        const favoriteSubjectsList = document.getElementById('favoriteSubjectsList');
-        const allSubjectsList = document.getElementById('allSubjectsList');
-        const subjectSearchInput = document.getElementById('subjectSearchInput');
+        // --- DOM要素のキャッシュ (初期化時に一度だけ取得) ---
+        let appContent, tabDaily, tabRegularSetting, tabClubActivity, tabSubjects;
+        let subjectModal, closeModalButton, clearSubjectButton, favoriteSubjectsList, allSubjectsList, subjectSearchInput;
 
         // --- アプリケーションの状態 ---
         let currentView = 'daily'; 
@@ -275,7 +272,7 @@
         let regularTimetable = {}; 
         let dailyTimetables = {}; 
         let maxPeriodsConfig = {}; 
-        let clubActivitySchedules = {}; // { "YYYY-MM-DD": true/false/undefined }
+        let clubActivitySchedules = {}; 
 
         let selectedDateForDailyView = new Date();
         let calendarDisplayMonth = new Date(); 
@@ -283,21 +280,39 @@
         let editingSlot = { type: null, day: null, period: null, date: null };
 
         // --- 初期化処理 ---
-        document.addEventListener('DOMContentLoaded', () => {
+        function initializeApp() {
+            appContent = document.getElementById('app-content');
+            tabDaily = document.getElementById('tab-daily');
+            tabRegularSetting = document.getElementById('tab-regular-setting');
+            tabClubActivity = document.getElementById('tab-club-activity'); 
+            tabSubjects = document.getElementById('tab-subjects');
+            
+            subjectModal = document.getElementById('subjectModal');
+            closeModalButton = document.getElementById('closeModalButton');
+            clearSubjectButton = document.getElementById('clearSubjectButton');
+            favoriteSubjectsList = document.getElementById('favoriteSubjectsList');
+            allSubjectsList = document.getElementById('allSubjectsList');
+            subjectSearchInput = document.getElementById('subjectSearchInput');
+
             loadData();
             calendarDisplayMonth.setDate(1); 
             setActiveTab(currentView);
             render();
 
-            tabDaily.addEventListener('click', () => switchView('daily'));
-            tabRegularSetting.addEventListener('click', () => switchView('regular-setting'));
-            tabClubActivity.addEventListener('click', () => switchView('club-activity')); 
-            tabSubjects.addEventListener('click', () => switchView('subjects'));
+            if (tabDaily) tabDaily.addEventListener('click', () => switchView('daily'));
+            if (tabRegularSetting) tabRegularSetting.addEventListener('click', () => switchView('regular-setting'));
+            if (tabClubActivity) tabClubActivity.addEventListener('click', () => switchView('club-activity')); 
+            if (tabSubjects) tabSubjects.addEventListener('click', () => switchView('subjects'));
 
-            closeModalButton.addEventListener('click', closeSubjectModal);
-            clearSubjectButton.addEventListener('click', () => selectSubjectForSlot(null));
-            subjectSearchInput.addEventListener('input', renderSubjectSelectionModalContent);
-        });
+            if (closeModalButton) closeModalButton.addEventListener('click', closeSubjectModal);
+            if (clearSubjectButton) clearSubjectButton.addEventListener('click', () => selectSubjectForSlot(null));
+            if (subjectSearchInput) subjectSearchInput.addEventListener('input', renderSubjectSelectionModalContent);
+            
+            document.body.classList.add('loaded');
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
 
         // --- データ永続化 ---
         function saveData() {
@@ -371,16 +386,22 @@
         }
 
         function setActiveTab(viewName) {
-            [tabDaily, tabRegularSetting, tabClubActivity, tabSubjects].forEach(tab => tab.classList.remove('active')); 
-            if (viewName === 'daily') tabDaily.classList.add('active');
-            else if (viewName === 'regular-setting') tabRegularSetting.classList.add('active');
-            else if (viewName === 'club-activity') tabClubActivity.classList.add('active'); 
-            else if (viewName === 'subjects') tabSubjects.classList.add('active');
+            if(tabDaily) tabDaily.classList.remove('active');
+            if(tabRegularSetting) tabRegularSetting.classList.remove('active');
+            if(tabClubActivity) tabClubActivity.classList.remove('active');
+            if(tabSubjects) tabSubjects.classList.remove('active');
+
+            if (viewName === 'daily' && tabDaily) tabDaily.classList.add('active');
+            else if (viewName === 'regular-setting' && tabRegularSetting) tabRegularSetting.classList.add('active');
+            else if (viewName === 'club-activity' && tabClubActivity) tabClubActivity.classList.add('active'); 
+            else if (viewName === 'subjects' && tabSubjects) tabSubjects.classList.add('active');
         }
 
         // --- メインレンダー関数 ---
         function render() {
-            appContent.innerHTML = '';
+            if (!appContent) return; 
+            appContent.innerHTML = ''; 
+            
             if (currentView === 'daily') {
                 renderDailyView();
             } else if (currentView === 'regular-setting') {
@@ -408,14 +429,13 @@
                 if (dailyTimetables[todayStr].type === 'irregular' && Array.isArray(dailyTimetables[todayStr].schedule)) {
                     scheduleToDisplay = dailyTimetables[todayStr].schedule;
                     scheduleType = '変則';
-                } else if (dayOfWeekEng && regularTimetable && Array.isArray(regularTimetable[dayOfWeekEng]) && dailyTimetables[todayStr].type !== 'irregular') {
-                    // dailyTimetables[todayStr].type が 'regular' の場合、または type が未定義だがエントリが存在する場合
+                } else if (dayOfWeekEng && regularTimetable && Array.isArray(regularTimetable[dayOfWeekEng])) { 
+                    // typeが'regular'またはdailyTimetables[todayStr]自体が存在しない(かつ平日)場合は通常時間割
                     scheduleToDisplay = regularTimetable[dayOfWeekEng];
-                    scheduleType = '通常'; // 明示的に通常とする
+                    scheduleType = '通常'; 
                 }
             } else if (dayOfWeekEng && regularTimetable && Array.isArray(regularTimetable[dayOfWeekEng])) {
                 scheduleToDisplay = regularTimetable[dayOfWeekEng];
-                // scheduleType は '通常' のまま
             }
             
             let finalSchedule = Array(currentDayMaxPeriods).fill(null);
@@ -432,7 +452,7 @@
                 <div class="bg-gray-50 p-3 sm:p-4 rounded-lg shadow">
                     <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
                         <h2 class="text-lg sm:text-xl font-semibold text-gray-700">今日の時間割 (${scheduleType})</h2>
-                        <input type="date" id="datePicker" value="${todayStr}" class="p-2 border rounded-md w-full sm:w-auto text-sm">
+                        <input type="date" id="datePickerDaily" value="${todayStr}" class="p-2 border rounded-md w-full sm:w-auto text-sm">
                     </div>
                     <div class="grid grid-cols-1 gap-2 mb-4">`;
 
@@ -452,106 +472,143 @@
                 <div class="mt-4">
                     <label for="dailyMemo" class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">メモ:</label>
                     <textarea id="dailyMemo" rows="3" class="w-full p-2 border rounded-md shadow-sm text-sm" placeholder="今日の持ち物や連絡事項など">${memo}</textarea>
-                    <button id="saveMemoButton" class="mt-2 action-button action-button-blue w-full sm:w-auto">メモを保存</button>
+                    <button id="saveMemoButtonDaily" class="mt-2 action-button action-button-blue w-full sm:w-auto">メモを保存</button>
                 </div>
                 <div class="mt-4 flex flex-col sm:flex-row gap-2">`; 
             
             if (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) { 
-                if (!dailyTimetables || !dailyTimetables[todayStr] || dailyTimetables[todayStr].type === 'regular') {
-                    html += `<button id="switchToIrregularButton" class="action-button action-button-green w-full sm:w-auto">この日を変則時間割にする</button>`;
+                if (!dailyTimetables[todayStr] || dailyTimetables[todayStr].type === 'regular') {
+                    html += `<button id="switchToIrregularButtonDaily" class="action-button action-button-green w-full sm:w-auto">この日を変則時間割にする</button>`;
                 } 
                 else if (dailyTimetables[todayStr] && dailyTimetables[todayStr].type === 'irregular') {
-                    html += `<button id="importRegularTimetableButton" class="action-button action-button-orange w-full sm:w-auto">通常時間割で上書き</button>`;
+                    html += `<button id="importRegularTimetableButtonDaily" class="action-button action-button-orange w-full sm:w-auto">通常時間割で上書き</button>`;
                 }
             }
             html += `</div></div>`;
             appContent.innerHTML = html;
+            attachDailyViewListeners();
+        }
 
-            document.getElementById('datePicker').addEventListener('change', (e) => {
-                selectedDateForDailyView = new Date(e.target.value + 'T00:00:00'); 
-                renderDailyView();
-            });
-            
-            document.querySelectorAll('.period-slot').forEach(slot => {
-                slot.addEventListener('click', (e) => {
-                    const period = parseInt(e.currentTarget.dataset.period);
-                    if ((!dailyTimetables[todayStr] || dailyTimetables[todayStr].type === 'regular') && dayOfWeekEng) {
-                        const baseScheduleSrc = (regularTimetable && regularTimetable[dayOfWeekEng]) ? regularTimetable[dayOfWeekEng] : Array(currentDayMaxPeriods).fill(null);
-                        const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => baseScheduleSrc[idx] || null);
-                        dailyTimetables[todayStr] = { type: 'irregular', schedule: newSchedule, memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" };
-                        saveData();
-                        renderDailyView(); 
-                        openSubjectModal('daily', null, period, todayStr);
-                        return; 
-                    }
-                    if(dayOfWeekEng) { 
-                       openSubjectModal('daily', null, period, todayStr);
-                    }
-                });
-            });
-
-            const saveMemoButton = document.getElementById('saveMemoButton');
-            if (saveMemoButton) {
-                saveMemoButton.addEventListener('click', () => {
-                    const memoText = document.getElementById('dailyMemo').value;
-                    if (!dailyTimetables[todayStr]) {
-                        const baseSchedule = (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) 
-                                           ? [...regularTimetable[dayOfWeekEng]] 
-                                           : Array(currentDayMaxPeriods).fill(null); 
-                        dailyTimetables[todayStr] = { 
-                            type: dayOfWeekEng ? 'regular' : 'irregular', 
-                            schedule: baseSchedule, 
-                            memo: memoText 
-                        };
-                    } else {
-                        dailyTimetables[todayStr].memo = memoText;
-                    }
-                    saveData();
-                    alert('メモを保存しました。');
-                });
-            }
-            
-            const switchToIrregularButton = document.getElementById('switchToIrregularButton');
-            if (switchToIrregularButton) {
-                switchToIrregularButton.addEventListener('click', () => {
-                    const baseScheduleSrc = (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) ? regularTimetable[dayOfWeekEng] : Array(currentDayMaxPeriods).fill(null);
-                    const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => baseScheduleSrc[idx] || null);
-                    dailyTimetables[todayStr] = { type: 'irregular', schedule: newSchedule, memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" };
-                    saveData();
+        function attachDailyViewListeners() {
+            const datePicker = document.getElementById('datePickerDaily');
+            if (datePicker) {
+                datePicker.addEventListener('change', (e) => {
+                    selectedDateForDailyView = new Date(e.target.value + 'T00:00:00'); 
                     renderDailyView();
                 });
             }
+            
+            const periodSlots = document.querySelectorAll('#app-content .period-slot');
+            periodSlots.forEach(slot => {
+                slot.addEventListener('click', handleDailyPeriodSlotClick);
+            });
 
-            const importRegularTimetableButton = document.getElementById('importRegularTimetableButton');
-            if (importRegularTimetableButton) {
-                importRegularTimetableButton.addEventListener('click', () => {
-                    if (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) {
-                        if (confirm('現在の予定を破棄し、この曜日の通常時間割で上書きしますか？')) {
-                            const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => regularTimetable[dayOfWeekEng][idx] || null);
-                            // 上書き後は type を 'regular' に戻す
-                            dailyTimetables[todayStr] = { 
-                                type: 'regular', // 修正点: 'irregular' から 'regular' へ
-                                schedule: newSchedule, 
-                                memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" 
-                            };
-                            saveData();
-                            renderDailyView(); // UIを再描画して「(通常)」表示に更新
-                        }
-                    } else {
-                        alert('この曜日の通常時間割が設定されていません。');
-                    }
-                });
+            const saveMemoButton = document.getElementById('saveMemoButtonDaily');
+            if (saveMemoButton) {
+                saveMemoButton.addEventListener('click', handleSaveDailyMemo);
+            }
+            
+            const switchToIrregularButton = document.getElementById('switchToIrregularButtonDaily');
+            if (switchToIrregularButton) {
+                switchToIrregularButton.addEventListener('click', handleSwitchToIrregular);
+            }
+
+            const importRegularButton = document.getElementById('importRegularTimetableButtonDaily');
+            if (importRegularButton) {
+                importRegularButton.addEventListener('click', handleImportRegularTimetable);
             }
         }
+
+        function handleDailyPeriodSlotClick(e) {
+            const period = parseInt(e.currentTarget.dataset.period);
+            const todayStr = formatDate(selectedDateForDailyView);
+            const dayOfWeekIndex = (selectedDateForDailyView.getDay() + 6) % 7;
+            const dayOfWeekEng = (dayOfWeekIndex >= 0 && dayOfWeekIndex < DAYS_OF_WEEK_ENG_FOR_TIMETABLE.length) ? DAYS_OF_WEEK_ENG_FOR_TIMETABLE[dayOfWeekIndex] : null;
+            const currentDayMaxPeriods = dayOfWeekEng && maxPeriodsConfig && typeof maxPeriodsConfig[dayOfWeekEng] === 'number' ? maxPeriodsConfig[dayOfWeekEng] : GLOBAL_MAX_PERIODS;
+
+            if ((!dailyTimetables[todayStr] || dailyTimetables[todayStr].type === 'regular') && dayOfWeekEng) {
+                const baseScheduleSrc = (regularTimetable && regularTimetable[dayOfWeekEng]) ? regularTimetable[dayOfWeekEng] : Array(currentDayMaxPeriods).fill(null);
+                const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => baseScheduleSrc[idx] || null);
+                dailyTimetables[todayStr] = { type: 'irregular', schedule: newSchedule, memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" };
+                saveData();
+                renderDailyView(); 
+                openSubjectModal('daily', null, period, todayStr);
+                return; 
+            }
+            if(dayOfWeekEng) { 
+               openSubjectModal('daily', null, period, todayStr);
+            }
+        }
+
+        function handleSaveDailyMemo() {
+            const todayStr = formatDate(selectedDateForDailyView);
+            const dayOfWeekIndex = (selectedDateForDailyView.getDay() + 6) % 7;
+            const dayOfWeekEng = (dayOfWeekIndex >= 0 && dayOfWeekIndex < DAYS_OF_WEEK_ENG_FOR_TIMETABLE.length) ? DAYS_OF_WEEK_ENG_FOR_TIMETABLE[dayOfWeekIndex] : null;
+            const currentDayMaxPeriods = dayOfWeekEng && maxPeriodsConfig && typeof maxPeriodsConfig[dayOfWeekEng] === 'number' ? maxPeriodsConfig[dayOfWeekEng] : GLOBAL_MAX_PERIODS;
+            const memoTextEl = document.getElementById('dailyMemo');
+            if (!memoTextEl) return;
+            const memoText = memoTextEl.value;
+
+
+            if (!dailyTimetables[todayStr]) {
+                const baseSchedule = (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) 
+                                   ? [...regularTimetable[dayOfWeekEng]] 
+                                   : Array(currentDayMaxPeriods).fill(null); 
+                dailyTimetables[todayStr] = { 
+                    type: dayOfWeekEng ? 'regular' : 'irregular', 
+                    schedule: baseSchedule, 
+                    memo: memoText 
+                };
+            } else {
+                dailyTimetables[todayStr].memo = memoText;
+            }
+            saveData();
+            alert('メモを保存しました。');
+        }
+
+        function handleSwitchToIrregular() {
+            const todayStr = formatDate(selectedDateForDailyView);
+            const dayOfWeekIndex = (selectedDateForDailyView.getDay() + 6) % 7;
+            const dayOfWeekEng = (dayOfWeekIndex >= 0 && dayOfWeekIndex < DAYS_OF_WEEK_ENG_FOR_TIMETABLE.length) ? DAYS_OF_WEEK_ENG_FOR_TIMETABLE[dayOfWeekIndex] : null;
+            const currentDayMaxPeriods = dayOfWeekEng && maxPeriodsConfig && typeof maxPeriodsConfig[dayOfWeekEng] === 'number' ? maxPeriodsConfig[dayOfWeekEng] : GLOBAL_MAX_PERIODS;
+
+            const baseScheduleSrc = (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) ? regularTimetable[dayOfWeekEng] : Array(currentDayMaxPeriods).fill(null);
+            const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => baseScheduleSrc[idx] || null);
+            dailyTimetables[todayStr] = { type: 'irregular', schedule: newSchedule, memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" };
+            saveData();
+            renderDailyView();
+        }
+
+        function handleImportRegularTimetable() {
+            const todayStr = formatDate(selectedDateForDailyView);
+            const dayOfWeekIndex = (selectedDateForDailyView.getDay() + 6) % 7;
+            const dayOfWeekEng = (dayOfWeekIndex >= 0 && dayOfWeekIndex < DAYS_OF_WEEK_ENG_FOR_TIMETABLE.length) ? DAYS_OF_WEEK_ENG_FOR_TIMETABLE[dayOfWeekIndex] : null;
+            const currentDayMaxPeriods = dayOfWeekEng && maxPeriodsConfig && typeof maxPeriodsConfig[dayOfWeekEng] === 'number' ? maxPeriodsConfig[dayOfWeekEng] : GLOBAL_MAX_PERIODS;
+
+            if (dayOfWeekEng && regularTimetable && regularTimetable[dayOfWeekEng]) {
+                if (confirm('現在の予定を破棄し、この曜日の通常時間割で上書きしますか？')) {
+                    const newSchedule = Array(currentDayMaxPeriods).fill(null).map((_, idx) => regularTimetable[dayOfWeekEng][idx] || null);
+                    dailyTimetables[todayStr] = { 
+                        type: 'regular', 
+                        schedule: newSchedule, 
+                        memo: (dailyTimetables[todayStr] && dailyTimetables[todayStr].memo) || "" 
+                    };
+                    saveData();
+                    renderDailyView(); 
+                }
+            } else {
+                alert('この曜日の通常時間割が設定されていません。');
+            }
+        }
+
 
         function renderRegularSettingView() {
             let html = `
                 <div class="bg-gray-50 p-3 sm:p-4 rounded-lg shadow">
                     <div class="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6 gap-2">
                         <h2 class="text-lg sm:text-xl font-semibold text-gray-700">通常時間割の設定と確認</h2>
-                        <button id="clearAllRegularTimetableButton" class="action-button action-button-red text-xs sm:text-sm">全ての通常時間割をクリア</button>
+                        <button id="clearAllRegularBtn" class="action-button action-button-red text-xs sm:text-sm">全ての通常時間割をクリア</button>
                     </div>
-
                     <div class="mb-6 sm:mb-8 p-3 sm:p-4 border rounded-lg bg-white">
                         <h3 class="text-base sm:text-lg font-semibold text-gray-700 mb-2">1. コマ数設定と科目編集</h3>
                         <p class="text-xs sm:text-sm text-gray-600 mb-1">各曜日のコマ数を設定し、コマをクリックして科目を割り当ててください。</p>
@@ -578,7 +635,36 @@
                                         }).join('')}
                                     </tr>
                                 </thead>
-                                <tbody>`;
+                                <tbody id="regularTimetableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="p-3 sm:p-4 border rounded-lg bg-white">
+                        <h3 class="text-base sm:text-lg font-semibold text-gray-700 mb-2">2. 通常時間割の確認</h3>
+                        <div id="regularTimetableDisplay" class="overflow-x-auto"></div>
+                    </div>
+                </div>`;
+            appContent.innerHTML = html;
+            renderRegularTimetableBodyAndDisplay(); 
+            attachRegularSettingListeners();
+        }
+
+        function renderRegularTimetableBodyAndDisplay() {
+            const timetableBody = document.getElementById('regularTimetableBody');
+            const timetableDisplay = document.getElementById('regularTimetableDisplay');
+            if (!timetableBody || !timetableDisplay) return;
+
+            let bodyHtml = '';
+            let displayHtml = `
+                <table class="min-w-full border-collapse timetable-table">
+                    <thead>
+                        <tr>
+                            <th class="w-12 sm:w-16">時間</th>
+                            ${DAYS_OF_WEEK_FOR_TIMETABLE.map(day => `<th>${day}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
             let displayMaxPeriods = 0;
             DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(dayEng => {
                 if (((maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS) > displayMaxPeriods) {
@@ -587,78 +673,43 @@
             });
 
             for (let i = 0; i < displayMaxPeriods; i++) {
-                html += `<tr><td class="period-label">${i + 1}限</td>`;
+                bodyHtml += `<tr><td class="period-label">${i + 1}限</td>`;
+                displayHtml += `<tr><td class="period-label">${i + 1}限</td>`;
                 DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach((dayEng) => { 
                     const dayMaxP = (maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS;
+                    const subjectId = (regularTimetable && regularTimetable[dayEng]) ? regularTimetable[dayEng][i] : null;
+                    const subject = findSubjectById(subjectId);
+                    
                     if (i < dayMaxP) {
-                        const subjectId = (regularTimetable && regularTimetable[dayEng]) ? regularTimetable[dayEng][i] : null;
-                        const subject = findSubjectById(subjectId);
-                        html += `
+                        bodyHtml += `
                             <td class="period-slot-editable timetable-table" data-day="${dayEng}" data-period="${i}">
                                 ${subject ? subject.name : '<span class="text-gray-400">- 未設定 -</span>'}
                                 ${subject ? `<span class="subject-color-indicator" style="background-color: ${subject.color || '#cccccc'};"></span>` : ''}
                             </td>`;
-                    } else {
-                        html += `<td class="bg-gray-100 timetable-table"></td>`;
-                    }
-                });
-                html += `</tr>`;
-            }
-            html += `       </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="p-3 sm:p-4 border rounded-lg bg-white">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-base sm:text-lg font-semibold text-gray-700">2. 通常時間割の確認</h3>
-                        </div>
-                        <div id="printableArea" class="overflow-x-auto"> 
-                            <table class="min-w-full border-collapse timetable-table">
-                                <thead>
-                                    <tr>
-                                        <th class="w-12 sm:w-16">時間</th>
-                                        ${DAYS_OF_WEEK_FOR_TIMETABLE.map(day => `<th>${day}</th>`).join('')} 
-                                    </tr>
-                                </thead>
-                                <tbody>`;
-            let overallMaxPeriodsToDisplay = 0; 
-            DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(dayEng => {
-                const currentDayMax = (maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS;
-                if (currentDayMax > overallMaxPeriodsToDisplay) {
-                    overallMaxPeriodsToDisplay = currentDayMax;
-                }
-            });
-
-            for (let i = 0; i < overallMaxPeriodsToDisplay; i++) {
-                html += `<tr><td class="period-label">${i + 1}限</td>`;
-                DAYS_OF_WEEK_ENG_FOR_TIMETABLE.forEach(dayEng => { 
-                    const dayMaxP = (maxPeriodsConfig && maxPeriodsConfig[dayEng]) || GLOBAL_MAX_PERIODS;
-                    html += `<td class="period-slot-displayonly timetable-table">`; 
-                    if (i < dayMaxP) {
-                        const subjectId = (regularTimetable && regularTimetable[dayEng]) ? regularTimetable[dayEng][i] : null;
-                        const subject = findSubjectById(subjectId);
+                        displayHtml += `<td class="period-slot-displayonly timetable-table">`;
                         if (subject) {
-                            html += `<span class="font-medium">${subject.name}</span>`;
-                            html += `<span class="subject-color-indicator" style="background-color: ${subject.color || '#cccccc'};"></span>`;
+                            displayHtml += `<span class="font-medium">${subject.name}</span><span class="subject-color-indicator" style="background-color: ${subject.color || '#cccccc'};"></span>`;
                         } else {
-                            html += `-`;
+                            displayHtml += `-`;
                         }
+                        displayHtml += `</td>`;
                     } else {
-                        html += ` `; 
+                        bodyHtml += `<td class="bg-gray-100 timetable-table"></td>`;
+                        displayHtml += `<td class="bg-gray-100 timetable-table"></td>`;
                     }
-                    html += `</td>`;
                 });
-                html += `</tr>`;
+                bodyHtml += `</tr>`;
+                displayHtml += `</tr>`;
             }
-            html += `           </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>`;
-            appContent.innerHTML = html;
+            displayHtml += `</tbody></table>`;
+            timetableBody.innerHTML = bodyHtml;
+            timetableDisplay.innerHTML = displayHtml;
+        }
 
-            document.querySelectorAll('.max-periods-selector').forEach(select => {
+
+        function attachRegularSettingListeners() {
+            const selectors = document.querySelectorAll('#app-content .max-periods-selector');
+            if (selectors) selectors.forEach(select => {
                 select.addEventListener('change', (e) => {
                     const dayEng = e.target.dataset.day;
                     const newMax = parseInt(e.target.value);
@@ -666,15 +717,17 @@
                 });
             });
 
-            document.querySelectorAll('.period-slot-editable').forEach(slot => {
+            const editableSlots = document.querySelectorAll('#app-content .period-slot-editable');
+            if (editableSlots) editableSlots.forEach(slot => {
                 slot.addEventListener('click', (e) => {
                     const day = e.currentTarget.dataset.day;
                     const period = parseInt(e.currentTarget.dataset.period);
                     openSubjectModal('regular', day, period);
                 });
             });
-            
-            document.querySelectorAll('.clear-day-btn').forEach(button => {
+
+            const clearDayBtns = document.querySelectorAll('#app-content .clear-day-btn');
+            if (clearDayBtns) clearDayBtns.forEach(button => {
                 button.addEventListener('click', (e) => {
                     const dayEngToClear = e.target.dataset.dayClear;
                     if (confirm(`${DAYS_OF_WEEK_FOR_TIMETABLE[DAYS_OF_WEEK_ENG_FOR_TIMETABLE.indexOf(dayEngToClear)]}曜日の通常時間割を全てクリアしますか？`)) {
@@ -682,53 +735,65 @@
                     }
                 });
             });
-
-            document.getElementById('clearAllRegularTimetableButton').addEventListener('click', () => {
-                if (confirm('全ての曜日の通常時間割をクリアしますか？この操作は元に戻せません。')) {
-                    clearAllRegularTimetables();
-                }
-            });
+            const clearAllBtn = document.getElementById('clearAllRegularBtn');
+            if(clearAllBtn) {
+                clearAllBtn.addEventListener('click', () => {
+                    if (confirm('全ての曜日の通常時間割をクリアしますか？この操作は元に戻せません。')) {
+                        clearAllRegularTimetables();
+                    }
+                });
+            }
         }
+
 
         function renderClubActivityView() {
             const year = calendarDisplayMonth.getFullYear();
-            const month = calendarDisplayMonth.getMonth(); // 0-11
+            const month = calendarDisplayMonth.getMonth(); 
 
             let html = `
                 <div id="clubCalendarContainer" class="bg-gray-50 p-3 sm:p-4 rounded-lg shadow">
                     <div class="flex justify-between items-center mb-4">
-                        <button id="prevMonthBtn" class="action-button bg-gray-200 hover:bg-gray-300 text-gray-700">&lt; 前月</button>
+                        <button id="prevMonthClubBtn" class="action-button bg-gray-200 hover:bg-gray-300 text-gray-700">&lt; 前月</button>
                         <h2 class="text-lg sm:text-xl font-semibold text-gray-700">${year}年 ${month + 1}月</h2>
-                        <button id="nextMonthBtn" class="action-button bg-gray-200 hover:bg-gray-300 text-gray-700">次月 &gt;</button>
+                        <button id="nextMonthClubBtn" class="action-button bg-gray-200 hover:bg-gray-300 text-gray-700">次月 &gt;</button>
                     </div>
-
                     <table class="calendar mb-6">
                         <thead>
                             <tr>
                                 ${DAYS_OF_WEEK_SHORT.map(day => `<th>${day}</th>`).join('')}
                             </tr>
                         </thead>
-                        <tbody id="calendarBody">
-                            </tbody>
+                        <tbody id="calendarBodyClub"></tbody>
                     </table>
                     <p class="text-xs text-center text-gray-500 mb-4">日付をクリックして部活動の有無 (◯:有り, ✕:無し) を切り替えます。</p>
                 </div>`;
             appContent.innerHTML = html;
-
             renderCalendarBodyClub(year, month); 
-
-            document.getElementById('prevMonthBtn').addEventListener('click', () => {
+            attachClubActivityListeners();
+        }
+        
+        function attachClubActivityListeners() {
+            const prevBtn = document.getElementById('prevMonthClubBtn');
+            if(prevBtn) prevBtn.addEventListener('click', () => {
                 calendarDisplayMonth.setMonth(calendarDisplayMonth.getMonth() - 1);
                 renderClubActivityView();
             });
-            document.getElementById('nextMonthBtn').addEventListener('click', () => {
+            const nextBtn = document.getElementById('nextMonthClubBtn');
+            if(nextBtn) nextBtn.addEventListener('click', () => {
                 calendarDisplayMonth.setMonth(calendarDisplayMonth.getMonth() + 1);
                 renderClubActivityView();
             });
+             const calendarCells = document.querySelectorAll('#calendarBodyClub td[data-date]');
+             if(calendarCells) calendarCells.forEach(cell => {
+                cell.addEventListener('click', (e) => {
+                    toggleClubActivityStatus(e.currentTarget.dataset.date);
+                });
+            });
         }
 
+
         function renderCalendarBodyClub(year, month) {
-            const calendarBody = document.getElementById('calendarBody');
+            const calendarBody = document.getElementById('calendarBodyClub');
             if (!calendarBody) return; 
             calendarBody.innerHTML = ''; 
             const firstDayOfMonth = new Date(year, month, 1).getDay(); 
@@ -767,11 +832,6 @@
                             marker.classList.add('club-absent');
                         }
                         cell.appendChild(marker);
-
-
-                        cell.addEventListener('click', (e) => {
-                            toggleClubActivityStatus(e.currentTarget.dataset.date);
-                        });
                         date++;
                     }
                     row.appendChild(cell);
@@ -779,6 +839,13 @@
                 calendarBody.appendChild(row);
                 if (date > daysInMonth && i > 3) break; 
             }
+            // Re-attach click listeners for the new cells
+            const calendarCells = document.querySelectorAll('#calendarBodyClub td[data-date]');
+            if(calendarCells) calendarCells.forEach(cell => {
+                cell.addEventListener('click', (e) => {
+                    toggleClubActivityStatus(e.currentTarget.dataset.date);
+                });
+            });
         }
         
         function toggleClubActivityStatus(dateKey) {
@@ -834,48 +901,70 @@
                     <div class="mb-6 p-3 sm:p-4 border border-blue-200 rounded-lg bg-blue-50">
                         <h3 class="text-base sm:text-lg font-semibold text-blue-700 mb-2">新しい科目を追加</h3>
                         <div class="flex flex-col sm:flex-row gap-2">
-                            <input type="text" id="newSubjectName" placeholder="科目名 (例: 数学)" class="flex-grow p-2 border rounded-md text-sm">
-                            <input type="color" id="newSubjectColor" value="${generateRandomColor()}" class="p-1 border rounded-md h-10 w-full sm:w-auto">
-                            <button id="addSubjectButton" class="action-button action-button-blue">追加</button>
+                            <input type="text" id="newSubjectNameInput" placeholder="科目名 (例: 数学)" class="flex-grow p-2 border rounded-md text-sm">
+                            <input type="color" id="newSubjectColorInput" value="${generateRandomColor()}" class="p-1 border rounded-md h-10 w-full sm:w-auto">
+                            <button id="addSubjectBtn" class="action-button action-button-blue">追加</button>
                         </div>
                     </div>
                     <div>
                         <h3 class="text-base sm:text-lg font-semibold text-gray-700 mb-2">登録済み科目リスト</h3>
-                        <ul id="subjectList" class="space-y-2">`;
-            if (subjects.length === 0) {
-                html += `<li class="text-gray-500 p-3 bg-white rounded-md shadow-sm text-sm">まだ科目が登録されていません。</li>`;
-            }
-            subjects.forEach(subject => {
-                html += `
-                    <li class="subject-item bg-white p-2 sm:p-3 rounded-md shadow-sm">
-                        <div class="flex items-center min-w-0">
-                            <span class="subject-color-indicator mr-2 sm:mr-3 flex-shrink-0" style="background-color: ${subject.color || '#cccccc'}; width: 1rem; height: 1rem; sm:width: 1.25rem; sm:height: 1.25rem;"></span>
-                            <span class="font-medium break-all text-sm sm:text-base">${subject.name}</span>
-                        </div>
-                        <div class="flex items-center space-x-1 sm:space-x-2 flex-shrink-0 ml-2">
-                            <button class="fav-btn ${subject.isFavorite ? 'is-favorite' : 'not-favorite'}" data-id="${subject.id}">
-                                ${subject.isFavorite ? '★' : '☆'} <span class="hidden sm:inline">${subject.isFavorite ? 'よく使う' : 'よく使う'}</span>
-                            </button>
-                            <button class="delete-btn" data-id="${subject.id}">削除</button>
-                        </div>
-                    </li>`;
-            });
-            html += `</ul></div></div>`;
+                        <ul id="subjectListContainer" class="space-y-2"></ul>
+                    </div>
+                </div>`;
             appContent.innerHTML = html;
+            renderSubjectList();
+            attachSubjectsViewListeners();
+        }
 
-            document.getElementById('addSubjectButton').addEventListener('click', addSubject);
-            document.querySelectorAll('.delete-btn').forEach(button => {
+        function renderSubjectList() {
+            const listContainer = document.getElementById('subjectListContainer');
+            if (!listContainer) return;
+            let listHtml = '';
+            if (subjects.length === 0) {
+                listHtml = `<li class="text-gray-500 p-3 bg-white rounded-md shadow-sm text-sm">まだ科目が登録されていません。</li>`;
+            } else {
+                subjects.forEach(subject => {
+                    listHtml += `
+                        <li class="subject-item bg-white p-2 sm:p-3 rounded-md shadow-sm">
+                            <div class="flex items-center min-w-0">
+                                <span class="subject-color-indicator mr-2 sm:mr-3 flex-shrink-0" style="background-color: ${subject.color || '#cccccc'}; width: 1rem; height: 1rem; sm:width: 1.25rem; sm:height: 1.25rem;"></span>
+                                <span class="font-medium break-all text-sm sm:text-base">${subject.name}</span>
+                            </div>
+                            <div class="flex items-center space-x-1 sm:space-x-2 flex-shrink-0 ml-2">
+                                <button class="fav-btn ${subject.isFavorite ? 'is-favorite' : 'not-favorite'}" data-id="${subject.id}">
+                                    ${subject.isFavorite ? '★' : '☆'} <span class="hidden sm:inline">${subject.isFavorite ? 'よく使う' : 'よく使う'}</span>
+                                </button>
+                                <button class="delete-btn" data-id="${subject.id}">削除</button>
+                            </div>
+                        </li>`;
+                });
+            }
+            listContainer.innerHTML = listHtml;
+        }
+
+
+        function attachSubjectsViewListeners() {
+            const addBtn = document.getElementById('addSubjectBtn');
+            if(addBtn) addBtn.addEventListener('click', addSubject);
+            
+            const deleteBtns = document.querySelectorAll('#app-content .delete-btn');
+            if(deleteBtns) deleteBtns.forEach(button => {
                 button.addEventListener('click', (e) => deleteSubject(e.target.dataset.id));
             });
-            document.querySelectorAll('.fav-btn').forEach(button => {
+
+            const favBtns = document.querySelectorAll('#app-content .fav-btn');
+            if(favBtns) favBtns.forEach(button => {
                 button.addEventListener('click', (e) => toggleFavoriteSubject(e.target.dataset.id));
             });
         }
 
+
         // --- 科目操作 ---
         function addSubject() {
-            const nameInput = document.getElementById('newSubjectName');
-            const colorInput = document.getElementById('newSubjectColor');
+            const nameInput = document.getElementById('newSubjectNameInput'); 
+            const colorInput = document.getElementById('newSubjectColorInput'); 
+            if (!nameInput || !colorInput) return;
+
             const name = nameInput.value.trim();
             const color = colorInput.value;
 
@@ -888,7 +977,7 @@
                     name, color, isFavorite: false 
                 });
                 nameInput.value = ''; colorInput.value = generateRandomColor(); 
-                saveData(); render(); 
+                saveData(); renderSubjectsView(); 
             } else {
                 alert('科目名を入力してください。');
             }
@@ -909,7 +998,7 @@
                         dailyTimetables[date].schedule = dailyTimetables[date].schedule.map(id => id === subjectId ? null : id);
                     }
                 }
-                saveData(); render();
+                saveData(); renderSubjectsView(); 
             }
         }
         
@@ -918,7 +1007,7 @@
             if (subject) {
                 subject.isFavorite = !subject.isFavorite;
                 saveData();
-                if (currentView === 'subjects') render();
+                if (currentView === 'subjects') renderSubjectsView(); 
                 else if (subjectModal.style.display === 'flex') renderSubjectSelectionModalContent();
             }
         }
@@ -932,17 +1021,19 @@
         function openSubjectModal(type, day, period, dateStr = null) {
             editingSlot = { type, day, period, date: dateStr };
             renderSubjectSelectionModalContent();
-            subjectModal.style.display = 'flex';
-            subjectSearchInput.focus();
+            if(subjectModal) subjectModal.classList.add('show'); // 'show'クラスで表示
+            if(subjectSearchInput) subjectSearchInput.focus();
         }
 
         function closeSubjectModal() {
-            subjectModal.style.display = 'none';
+            if(subjectModal) subjectModal.classList.remove('show'); // 'show'クラスを削除
             editingSlot = { type: null, day: null, period: null, date: null };
-            subjectSearchInput.value = ''; 
+            if(subjectSearchInput) subjectSearchInput.value = ''; 
         }
         
         function renderSubjectSelectionModalContent() {
+            if(!subjectSearchInput || !favoriteSubjectsList || !allSubjectsList) return;
+
             const searchTerm = subjectSearchInput.value.toLowerCase();
             const favSubjects = subjects.filter(s => s.isFavorite && s.name.toLowerCase().includes(searchTerm)).sort((a,b) => a.name.localeCompare(b.name, 'ja'));
             const otherSubjects = subjects.filter(s => !s.isFavorite && s.name.toLowerCase().includes(searchTerm)).sort((a,b) => a.name.localeCompare(b.name, 'ja'));
@@ -956,7 +1047,8 @@
             else allHtml += otherSubjects.length > 0 ? otherSubjects.map(s => createSubjectTagHtml(s)).join('') : `<p class="text-xs text-gray-500 p-2">該当なし</p>`;
             allSubjectsList.innerHTML = allHtml;
 
-            document.querySelectorAll('.subject-tag-selectable').forEach(tag => {
+            const selectableTags = document.querySelectorAll('#subjectModal .subject-tag-selectable');
+            if(selectableTags) selectableTags.forEach(tag => { 
                 tag.addEventListener('click', (e) => selectSubjectForSlot(e.currentTarget.dataset.subjectId));
             });
         }
@@ -1042,6 +1134,5 @@
         }
 
     </script>
-    <p>中学生向けの部活管理、時間割管理webアプリです！</p>
 </body>
 </html>
